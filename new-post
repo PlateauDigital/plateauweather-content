@@ -1,0 +1,46 @@
+#!/bin/bash
+
+POSTS_DIR="$(dirname "$0")/posts"
+
+if [[ -n "$1" ]]; then
+    # Parse provided timestamp (accepts "2026-02-17" or "2026-02-17 19:30" or "2026-02-17T19:30:00")
+    INPUT="${1//T/ }"  # Replace T with space for parsing
+
+    if [[ "$INPUT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+        # Date only - default to 20:00:00
+        DATE="$INPUT"
+        DATETIME="$INPUT 20:00:00"
+    else
+        # Date and time provided
+        DATE="${INPUT%% *}"
+        DATETIME="$INPUT"
+    fi
+
+    # Get proper timezone offset for that date
+    TIMESTAMP=$(TZ="America/Los_Angeles" date -j -f "%Y-%m-%d %H:%M:%S" "$DATETIME" +%Y-%m-%dT%H:%M:%S%z 2>/dev/null | sed 's/\(..\)$/:\1/')
+
+    if [[ -z "$TIMESTAMP" ]]; then
+        echo "Invalid date format. Use: YYYY-MM-DD or YYYY-MM-DD HH:MM:SS"
+        exit 1
+    fi
+else
+    # Use current date/time
+    DATE=$(TZ="America/Los_Angeles" date +%Y-%m-%d)
+    TIMESTAMP=$(TZ="America/Los_Angeles" date +%Y-%m-%dT%H:%M:%S%z | sed 's/\(..\)$/:\1/')
+fi
+
+FILE="$POSTS_DIR/$DATE.md"
+
+if [[ -f "$FILE" ]]; then
+    TIME=$(echo "$TIMESTAMP" | sed 's/.*T\([0-9][0-9]\):\([0-9][0-9]\).*/\1\2/')
+    FILE="$POSTS_DIR/$DATE-$TIME.md"
+fi
+
+cat > "$FILE" << EOF
+---
+published_at: $TIMESTAMP
+---
+
+EOF
+
+echo "Created: $FILE"
