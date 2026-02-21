@@ -44,3 +44,10 @@ published_at: $TIMESTAMP
 EOF
 
 echo "Created: $FILE"
+${EDITOR:-nvim} "$FILE"
+
+echo "Committing $FILE..."
+git add "$FILE"
+git commit -m "Add $(basename "$FILE")"
+
+echo "Committed $FILE. Ready to push!"
