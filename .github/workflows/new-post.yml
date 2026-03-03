@@ -1,0 +1,72 @@
+name: New Post
+
+on:
+  workflow_dispatch:
+    inputs:
+      content:
+        description: "Post content (markdown)"
+        required: true
+        type: string
+      date:
+        description: 'Date override in Pacific time (YYYY-MM-DD defaults to 8pm, or "YYYY-MM-DD HH:MM:SS" for a specific time). Leave blank to use the current time.'
+        required: false
+        type: string
+
+jobs:
+  create-post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create post
+        env:
+          CONTENT: ${{ inputs.content }}
+          DATE_INPUT: ${{ inputs.date }}
+        run: |
+          POSTS_DIR="posts"
+
+          if [[ -n "$DATE_INPUT" ]]; then
+            # Normalize: replace T separator with space
+            INPUT="${DATE_INPUT//T/ }"
+
+            if [[ "$INPUT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+              # Date only — default to 8pm Pacific
+              DATE="$INPUT"
+              DATETIME="$INPUT 20:00:00"
+            else
+              DATE="${INPUT%% *}"
+              DATETIME="$INPUT"
+            fi
+
+            TIMESTAMP=$(TZ="America/Los_Angeles" date -d "$DATETIME" +%Y-%m-%dT%H:%M:%S%z | sed 's/\(..\)$/:\1/')
+          else
+            DATE=$(TZ="America/Los_Angeles" date +%Y-%m-%d)
+            TIMESTAMP=$(TZ="America/Los_Angeles" date +%Y-%m-%dT%H:%M:%S%z | sed 's/\(..\)$/:\1/')
+          fi
+
+          FILE="$POSTS_DIR/$DATE.md"
+
+          # Avoid clobbering an existing post for the same date
+          if [[ -f "$FILE" ]]; then
+            TIME=$(echo "$TIMESTAMP" | sed 's/.*T\([0-9][0-9]\):\([0-9][0-9]\).*/\1\2/')
+            FILE="$POSTS_DIR/$DATE-$TIME.md"
+          fi
+
+          {
+            echo "---"
+            echo "published_at: $TIMESTAMP"
+            echo "---"
+            echo ""
+            printf '%s\n' "$CONTENT"
+          } > "$FILE"
+
+          echo "Created: $FILE"
+          echo "FILE=$FILE" >> "$GITHUB_ENV"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$FILE"
+          git commit -m "Add $(basename "$FILE")"
+          git push
