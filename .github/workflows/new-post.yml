@@ -20,9 +20,12 @@ jobs:
 
       - name: Create post
         env:
-          CONTENT: ${{ inputs.content }}
           DATE_INPUT: ${{ inputs.date }}
         run: |
+          # Decode content via jq to reliably preserve newlines
+          # (GitHub Actions strips newlines from inputs when set via env:)
+          CONTENT=$(echo '${{ toJSON(inputs.content) }}' | jq -r '.')
+
           POSTS_DIR="posts"
 
           if [[ -n "$DATE_INPUT" ]]; then
